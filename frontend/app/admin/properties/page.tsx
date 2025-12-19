@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { PropertyFormDialog } from "@/components/dashboard/PropertyFormDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type Property = {
   _id: string;
@@ -77,6 +78,7 @@ export default function PropertiesPage() {
     (state: RootState) => state.properties
   );
   const { user, token } = useSelector((state: RootState) => state.auth);
+  const { toast } = useToast();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
@@ -104,8 +106,21 @@ export default function PropertiesPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    dispatch(deleteProperty(id));
+  const handleDelete = async (id: string, title: string) => {
+    try {
+      await dispatch(deleteProperty(id)).unwrap();
+      toast({
+        title: "✅ Deleted Successfully",
+        description: `"${title}" has been removed`,
+        className: "bg-green-50 border-green-200",
+      });
+    } catch (err: any) {
+      toast({
+        title: "❌ Error",
+        description: err?.message || "Failed to delete property",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatCurrency = (amount: number) =>
@@ -336,7 +351,9 @@ export default function PropertiesPage() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => handleDelete(property._id)}
+                                  onClick={() =>
+                                    handleDelete(property._id, property.title)
+                                  }
                                   className="bg-destructive hover:bg-destructive/90"
                                 >
                                   Delete
