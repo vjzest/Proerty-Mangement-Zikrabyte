@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation";
 import { AppDispatch, RootState } from "@/lib/redux/store";
 import {
   fetchMyProperties,
   deleteProperty,
 } from "@/lib/redux/features/propertySlice";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -61,25 +62,21 @@ type Property = {
   title: string;
   type: string;
   location: string;
-  area: string;
-  googleMapsLink: string;
   rent: number;
   deposit: number;
-  features: string[];
   images: string[];
 };
 
 export default function PropertiesPage() {
   const dispatch = useDispatch<AppDispatch>();
-  const { properties, status } = useSelector(
+  const router = useRouter();
+  const { properties, status, error } = useSelector(
     (state: RootState) => state.properties
   );
   const { user, token } = useSelector((state: RootState) => state.auth);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-
-  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
@@ -105,14 +102,11 @@ export default function PropertiesPage() {
       maximumFractionDigits: 0,
     }).format(amount);
 
-  // Filter Logic
   const filteredProperties = properties.filter((property: any) => {
     const matchesSearch =
       property.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       property.location.toLowerCase().includes(searchQuery.toLowerCase());
-
     const matchesType = typeFilter === "all" || property.type === typeFilter;
-
     return matchesSearch && matchesType;
   });
 
@@ -121,30 +115,19 @@ export default function PropertiesPage() {
   if (status === "loading") {
     return (
       <div className="space-y-6">
-        <div className="flex justify-between">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </CardContent>
-        </Card>
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{pageTitle}</h1>
-          <p className="text-muted-foreground">
-            Manage your property listings.
-          </p>
+          <p className="text-muted-foreground">Manage your property listings.</p>
         </div>
         <Button onClick={() => handleOpenDialog()} className="shrink-0">
           <PlusCircle className="w-4 h-4 mr-2" />
@@ -152,7 +135,6 @@ export default function PropertiesPage() {
         </Button>
       </div>
 
-      {/* Filters */}
       <Card className="border-none shadow-sm bg-muted/40">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -182,144 +164,106 @@ export default function PropertiesPage() {
         </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card className="border shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="w-[400px]">Property Details</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Rent / Deposit</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProperties.length === 0 ? (
+      {/* Mobile View: Cards */}
+      <div className="grid gap-4 md:hidden">
+        {filteredProperties.length === 0 ? (
+          <p className="text-center text-muted-foreground py-10">No properties found.</p>
+        ) : (
+          filteredProperties.map((property: any) => (
+            <Card key={property._id} className="overflow-hidden">
+              <CardHeader className="p-0">
+                <div className="aspect-video relative">
+                  {property.images && property.images.length > 0 ? (
+                    <img src={property.images[0]} alt={property.title} className="w-full h-full object-cover"/>
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <ImageIcon className="h-10 w-10 text-muted-foreground/40"/>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4">
+                <Badge variant={property.type === "Commercial" ? "secondary" : "default"}>{property.type}</Badge>
+                <h3 className="font-bold text-lg mt-2">{property.title}</h3>
+                <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3"/>{property.location}</p>
+                <div className="mt-4 font-bold text-xl">{formatCurrency(property.rent)}</div>
+              </CardContent>
+              <CardFooter className="p-4 pt-0">
+                <Button variant="outline" className="w-full mr-2" onClick={() => handleOpenDialog(property)}>Edit</Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full">Delete</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>{/* ... AlertDialog content ... */}</AlertDialogContent>
+                </AlertDialog>
+              </CardFooter>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop View: Table */}
+      <div className="hidden md:block">
+        <Card className="border shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    No properties found.
-                  </TableCell>
+                  <TableHead className="w-[400px]">Property Details</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Rent / Deposit</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : (
-                filteredProperties.map((property: any) => (
-                  <TableRow key={property._id} className="hover:bg-muted/5">
-                    {/* Property Image & Title */}
-                    <TableCell>
-                      <div className="flex items-start gap-4">
-                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border bg-muted flex items-center justify-center">
-                          {property.images && property.images.length > 0 ? (
-                            <img
-                              src={property.images[0]}
-                              alt={property.title}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <p className="font-semibold leading-none text-base">
-                            {property.title}
-                          </p>
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <MapPin className="mr-1 h-3.5 w-3.5" />
-                            <span className="truncate max-w-[200px]">
-                              {property.location}
-                            </span>
+              </TableHeader>
+              <TableBody>
+                {filteredProperties.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="h-32 text-center text-muted-foreground">No properties found.</TableCell></TableRow>
+                ) : (
+                  filteredProperties.map((property: any) => (
+                    <TableRow key={property._id} className="hover:bg-muted/5">
+                      <TableCell>
+                        <div className="flex items-start gap-4">
+                          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border bg-muted flex items-center justify-center">
+                            {property.images && property.images.length > 0 ? (
+                              <img src={property.images[0]} alt={property.title} className="h-full w-full object-cover"/>
+                            ) : (
+                              <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <p className="font-semibold leading-none text-base">{property.title}</p>
+                            <div className="flex items-center text-sm text-muted-foreground"><MapPin className="mr-1 h-3.5 w-3.5" /><span className="truncate max-w-[200px]">{property.location}</span></div>
                           </div>
                         </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Type Badge */}
-                    <TableCell>
-                      <Badge
-                        variant={
-                          property.type === "Commercial"
-                            ? "secondary"
-                            : "default"
-                        }
-                        className="gap-1.5 py-1 px-2"
-                      >
-                        {property.type === "Commercial" ? (
-                          <Building className="w-3.5 h-3.5" />
-                        ) : (
-                          <HomeIcon className="w-3.5 h-3.5" />
-                        )}
-                        {property.type}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Pricing */}
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-base">
-                          {formatCurrency(property.rent)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Dep: {formatCurrency(property.deposit)}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleOpenDialog(property)}
-                          >
-                            Edit Details
-                          </DropdownMenuItem>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem
-                                onSelect={(e) => e.preventDefault()}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                Delete Property
-                              </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Are you sure?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently delete "{property.title}
-                                  ". This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(property._id)}
-                                  className="bg-destructive hover:bg-destructive/90"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+                      </TableCell>
+                      <TableCell><Badge variant={property.type === "Commercial" ? "secondary" : "default"} className="gap-1.5 py-1 px-2">{property.type === "Commercial" ? <Building className="w-3.5 h-3.5"/> : <HomeIcon className="w-3.5 h-3.5"/>}{property.type}</Badge></TableCell>
+                      <TableCell><div className="flex flex-col"><span className="font-bold text-base">{formatCurrency(property.rent)}</span><span className="text-xs text-muted-foreground">Dep: {formatCurrency(property.deposit)}</span></div></TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleOpenDialog(property)}>Edit Details</DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">Delete Property</DropdownMenuItem></AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete "{property.title}".</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDelete(property._id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      </div>
 
       <PropertyFormDialog
         open={isDialogOpen}
