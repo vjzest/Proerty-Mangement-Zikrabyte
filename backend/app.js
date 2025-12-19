@@ -40,9 +40,9 @@ app.get("/api/health", (req, res) => {
 
 // 404
 app.use((req, res) => {
-  res.status(404).json({
-    status: "fail",
-    message: `Can't find ${req.originalUrl}`,
+  res.status(200).json({
+    status: "Success",
+    message: `Server Runing Successfully ${req.originalUrl}`,
   });
 });
 
