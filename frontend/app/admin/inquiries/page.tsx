@@ -93,13 +93,17 @@ export default function InquiriesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
-                        {inquiry.property.title}
+                        {/* FIX: Check if property exists */}
+                        {inquiry.property?.title ?? "Property Deleted"}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {inquiry.property.location}
+                        {inquiry.property?.location ?? "N/A"}
                       </div>
                     </TableCell>
-                    <TableCell>{inquiry.agent.name}</TableCell>
+                    <TableCell>
+                      {/* FIX: Check if agent exists */}
+                      {inquiry.agent?.name ?? "Agent Deleted"}
+                    </TableCell>
                     <TableCell>
                       {format(new Date(inquiry.createdAt), "dd MMM, yyyy")}
                     </TableCell>
@@ -126,22 +130,12 @@ export default function InquiriesPage() {
                             </DialogTitle>
                           </DialogHeader>
                           <div className="py-4 space-y-4">
-                            <p>
-                              <strong>Customer:</strong> {inquiry.name}
-                            </p>
-                            <p>
-                              <strong>Email:</strong> {inquiry.email}
-                            </p>
-                            <p>
-                              <strong>Phone:</strong> {inquiry.phone}
-                            </p>
+                            <p><strong>Customer:</strong> {inquiry.name}</p>
+                            <p><strong>Email:</strong> {inquiry.email}</p>
+                            <p><strong>Phone:</strong> {inquiry.phone}</p>
                             <hr />
-                            <p>
-                              <strong>Message:</strong>
-                            </p>
-                            <p className="text-muted-foreground">
-                              {inquiry.message}
-                            </p>
+                            <p><strong>Message:</strong></p>
+                            <p className="text-muted-foreground">{inquiry.message}</p>
                           </div>
                         </DialogContent>
                       </Dialog>
