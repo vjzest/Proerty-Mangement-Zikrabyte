@@ -65,7 +65,7 @@ You can use these credentials to test the application.
 |------------|-------------------------|------------|
 | **Admin**  | `vj123@gmail.com`   | `1234567890` |
 | **Employee** | `vjzest9569@gmail.com`| `9569337844` |-Residential
-| **Employee** | `codehub933681@gmail.com`| `12345678` |-Residential
+| **Employee** | `codehub933681@gmail.com`| `1234567890` |-Residential
 
 
 ---
