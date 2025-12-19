@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Toaster } from "@/components/ui/toaster";
 
 export default function AdminLayoutClient({
   children,
@@ -64,7 +65,7 @@ export default function AdminLayoutClient({
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Properties", href: "/admin/properties", icon: Home },
     { name: "Employees", href: "/admin/employees", icon: Users },
-    {name: "Inquiries", href: "/admin/inquiries", icon:Mail},
+    { name: "Inquiries", href: "/admin/inquiries", icon: Mail },
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
@@ -209,6 +210,9 @@ export default function AdminLayoutClient({
         {/* Page Content */}
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
       </div>
+
+      {/* Toast Notifications */}
+      <Toaster />
     </div>
   );
 }
