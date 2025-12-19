@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, X, Upload } from "lucide-react";
+import { Loader2, X, Upload, CheckCircle2 } from "lucide-react";
 
 type Props = {
   open: boolean;
@@ -37,68 +37,46 @@ type Props = {
 export function PropertyFormDialog({ open, onOpenChange, property }: Props) {
   const dispatch = useDispatch<AppDispatch>();
   const { status } = useSelector((state: RootState) => state.properties);
-  const { user } = useSelector((state: RootState) => state.auth); // Get User Role
+  const { user } = useSelector((state: RootState) => state.auth);
   const isLoading = status === "loading";
 
   const [formData, setFormData] = useState({
-    title: "",
-    type: "Residential",
-    location: "",
-    rent: "",
-    deposit: "",
-    area: "",
-    googleMapsLink: "",
-    features: "",
+    title: "", type: "Residential", location: "", rent: "", deposit: "", area: "", googleMapsLink: "", features: "",
   });
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Helper to determine default type based on Role
   const getDefaultType = () => {
     if (user?.role === "Residential Employee") return "Residential";
     if (user?.role === "Commercial Employee") return "Commercial";
-    return "Residential"; // Default for Admin
+    return "Residential";
   };
 
   useEffect(() => {
+    // Reset success and error states when dialog opens
+    if (open) {
+      setIsSuccess(false);
+      setFormError(null);
+    }
+    
     if (property) {
-      // Edit Mode
       setFormData({
-        title: property.title || "",
-        type: property.type || "Residential",
-        location: property.location || "",
-        rent: property.rent?.toString() || "",
-        deposit: property.deposit?.toString() || "",
-        area: property.area || "",
-        googleMapsLink: property.googleMapsLink || "",
-        features: property.features?.join(", ") || "",
+        title: property.title || "", type: property.type || "Residential", location: property.location || "", rent: property.rent?.toString() || "", deposit: property.deposit?.toString() || "", area: property.area || "", googleMapsLink: property.googleMapsLink || "", features: property.features?.join(", ") || "",
       });
-      if (property.images && property.images.length > 0) {
-        setPreviewUrls(property.images);
-      } else {
-        setPreviewUrls([]);
-      }
+      setPreviewUrls(property.images || []);
     } else {
-      // Create Mode - Set Type based on Role
       setFormData({
-        title: "",
-        type: getDefaultType(), // Auto-select type based on role
-        location: "",
-        rent: "",
-        deposit: "",
-        area: "",
-        googleMapsLink: "",
-        features: "",
+        title: "", type: getDefaultType(), location: "", rent: "", deposit: "", area: "", googleMapsLink: "", features: "",
       });
       setImageFiles([]);
       setPreviewUrls([]);
     }
   }, [property, open, user]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -117,11 +95,9 @@ export function PropertyFormDialog({ open, onOpenChange, property }: Props) {
   };
 
   const removeImage = (index: number) => {
-    if (index < imageFiles.length) {
-      const newFiles = [...imageFiles];
-      newFiles.splice(index, 1);
-      setImageFiles(newFiles);
-    }
+    const newFiles = [...imageFiles];
+    newFiles.splice(index, 1);
+    setImageFiles(newFiles);
     const newPreviews = [...previewUrls];
     newPreviews.splice(index, 1);
     setPreviewUrls(newPreviews);
@@ -129,218 +105,96 @@ export function PropertyFormDialog({ open, onOpenChange, property }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null); // Clear previous errors
+
     const data = new FormData();
-    data.append("title", formData.title);
-    data.append("type", formData.type);
-    data.append("location", formData.location);
-    data.append("rent", formData.rent);
-    data.append("deposit", formData.deposit);
-    data.append("area", formData.area);
-    data.append("googleMapsLink", formData.googleMapsLink);
-
-    const featuresArray = formData.features
-      .split(",")
-      .map((f) => f.trim())
-      .filter(Boolean);
+    Object.entries(formData).forEach(([key, value]) => data.append(key, value));
+    
+    const featuresArray = formData.features.split(",").map((f) => f.trim()).filter(Boolean);
     featuresArray.forEach((feature) => data.append("features[]", feature));
+    imageFiles.forEach((file) => data.append("images", file));
 
-    imageFiles.forEach((file) => {
-      data.append("images", file);
-    });
-
+    const action = property
+      ? updateProperty({ id: property._id, propertyData: data })
+      : createProperty(data);
+      
     try {
-      if (property) {
-        if (property.images && property.images.length > 0) {
-          data.append("existingImages", JSON.stringify(property.images));
-        }
-        await dispatch(
-          updateProperty({ id: property._id, propertyData: data })
-        ).unwrap();
-      } else {
-        await dispatch(createProperty(data)).unwrap();
-      }
-      onOpenChange(false);
-    } catch (err) {
-      console.error("Failed to save property:", err);
+      await dispatch(action).unwrap();
+      setIsSuccess(true); // Show success message
+    } catch (err: any) {
+      setFormError(err.message || 'An unknown error occurred.'); // Show error inside dialog
     }
   };
 
-  // Determine if Type select should be disabled
-  // Disabled if user is NOT Admin (Employees are locked to their role)
+  const handleClose = () => {
+    onOpenChange(false);
+    // Add a small delay to prevent flicker when reopening
+    setTimeout(() => {
+      setIsSuccess(false);
+    }, 300);
+  };
+
   const isTypeDisabled = user?.role !== "Admin";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {property ? "Edit Property" : "Add New Property"}
-          </DialogTitle>
-          <DialogDescription>
-            Fill in the details below. Click save when you're done.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Property Title</Label>
-              <Input
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="e.g. Luxury Apartment in Bandra"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="type">Property Type</Label>
-              <Select
-                value={formData.type}
-                onValueChange={handleSelectChange}
-                disabled={isTypeDisabled} // Lock dropdown for employees
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Residential">Residential</SelectItem>
-                  <SelectItem value="Commercial">Commercial</SelectItem>
-                </SelectContent>
-              </Select>
-              {isTypeDisabled && (
-                <p className="text-[10px] text-muted-foreground">
-                  *Locked based on your employee role
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="City, Area"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="area">Area (sq ft)</Label>
-              <Input
-                id="area"
-                name="area"
-                value={formData.area}
-                onChange={handleChange}
-                placeholder="e.g. 1200 sq ft"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="rent">Rent (₹)</Label>
-              <Input
-                id="rent"
-                name="rent"
-                type="number"
-                value={formData.rent}
-                onChange={handleChange}
-                placeholder="0"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="deposit">Deposit (₹)</Label>
-              <Input
-                id="deposit"
-                name="deposit"
-                type="number"
-                value={formData.deposit}
-                onChange={handleChange}
-                placeholder="0"
-                required
-              />
-            </div>
+        {isSuccess ? (
+          <div className="flex flex-col items-center justify-center text-center p-8">
+            <CheckCircle2 className="h-16 w-16 text-green-500 mb-4" />
+            <h2 className="text-2xl font-bold">
+              Property {property ? "Updated" : "Uploaded"} Successfully!
+            </h2>
+            <p className="text-muted-foreground mt-2">The listing is now live.</p>
+            <Button onClick={handleClose} className="mt-6 w-full">
+              Done
+            </Button>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="googleMapsLink">Google Maps Link</Label>
-            <Input
-              id="googleMapsLink"
-              name="googleMapsLink"
-              value={formData.googleMapsLink}
-              onChange={handleChange}
-              placeholder="https://maps.google.com/..."
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="features">Features (Comma separated)</Label>
-            <Textarea
-              id="features"
-              name="features"
-              value={formData.features}
-              onChange={handleChange}
-              placeholder="e.g. WiFi, Parking, Gym, Pool"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Property Images</Label>
-            <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors relative">
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                onChange={handleImageChange}
-              />
-              <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Click to upload images (Max 10)
-              </p>
-            </div>
-
-            {previewUrls.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto py-2">
-                {previewUrls.map((url, index) => (
-                  <div key={index} className="relative h-20 w-20 shrink-0">
-                    <img
-                      src={url}
-                      alt="Preview"
-                      className="h-full w-full object-cover rounded-md border"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute -top-1 -right-1 bg-destructive text-white rounded-full p-0.5 hover:bg-destructive/90"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{property ? "Edit Property" : "Add New Property"}</DialogTitle>
+              <DialogDescription>Fill in the details below. Click save when you're done.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label htmlFor="title">Property Title</Label><Input id="title" name="title" value={formData.title} onChange={handleChange} required /></div>
+                <div className="space-y-2"><Label htmlFor="type">Property Type</Label><Select value={formData.type} onValueChange={handleSelectChange} disabled={isTypeDisabled}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Residential">Residential</SelectItem><SelectItem value="Commercial">Commercial</SelectItem></SelectContent></Select>{isTypeDisabled && (<p className="text-[10px] text-muted-foreground">*Locked based on your employee role</p>)}</div>
+                <div className="space-y-2"><Label htmlFor="location">Location</Label><Input id="location" name="location" value={formData.location} onChange={handleChange} required /></div>
+                <div className="space-y-2"><Label htmlFor="area">Area (sq ft)</Label><Input id="area" name="area" value={formData.area} onChange={handleChange} /></div>
+                <div className="space-y-2"><Label htmlFor="rent">Rent (₹)</Label><Input id="rent" name="rent" type="number" value={formData.rent} onChange={handleChange} required /></div>
+                <div className="space-y-2"><Label htmlFor="deposit">Deposit (₹)</Label><Input id="deposit" name="deposit" type="number" value={formData.deposit} onChange={handleChange} required /></div>
               </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {property ? "Update Property" : "Create Property"}
-            </Button>
-          </DialogFooter>
-        </form>
+              <div className="space-y-2"><Label htmlFor="googleMapsLink">Google Maps Link</Label><Input id="googleMapsLink" name="googleMapsLink" value={formData.googleMapsLink} onChange={handleChange} /></div>
+              <div className="space-y-2"><Label htmlFor="features">Features (Comma separated)</Label><Textarea id="features" name="features" value={formData.features} onChange={handleChange} /></div>
+              <div className="space-y-2">
+                <Label>Property Images</Label>
+                <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 relative">
+                  <input type="file" multiple accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleImageChange} />
+                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Click to upload images (Max 10)</p>
+                </div>
+                {previewUrls.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto py-2">
+                    {previewUrls.map((url, index) => (
+                      <div key={index} className="relative h-20 w-20 shrink-0">
+                        <img src={url} alt="Preview" className="h-full w-full object-cover rounded-md border" />
+                        <button type="button" onClick={() => removeImage(index)} className="absolute -top-1 -right-1 bg-destructive text-white rounded-full p-0.5"><X className="h-3 w-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {formError && (
+                  <p className="text-sm text-destructive text-center">{formError}</p>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{property ? "Update Property" : "Create Property"}</Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
