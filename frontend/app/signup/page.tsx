@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import { signupUser } from "@/lib/redux/features/authSlice";
 import { AppDispatch, RootState } from "@/lib/redux/store";
 import { useRouter } from "next/navigation";
@@ -49,17 +50,7 @@ export default function SignupPage() {
 
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const { user, status, error } = useSelector((state: RootState) => state.auth);
-
-  useEffect(() => {
-    if (status === "succeeded" && user) {
-      if (user.role === "Admin") {
-        router.push("/admin");
-      } else {
-        router.push("/employee");
-      }
-    }
-  }, [status, user, router]);
+  const { status, error } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     if (formData.password && formData.passwordConfirm) {
@@ -69,15 +60,40 @@ export default function SignupPage() {
     }
   }, [formData.password, formData.passwordConfirm]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (formData.password !== formData.passwordConfirm) {
       setPasswordMatch(false);
+      toast.error("Passwords do not match!");
       return;
     }
 
-    dispatch(signupUser(formData));
+    // Toast promise use karo - ye automatically handle karega sab kuch
+    const signupPromise = dispatch(signupUser(formData)).unwrap();
+
+    toast.promise(signupPromise, {
+      loading: "Creating your account...",
+      success: "🎉 Account created successfully!",
+      error: (err) => `${err || "Failed to create account"}`,
+    });
+
+    // Success ke baad redirect
+    signupPromise
+      .then(() => {
+        setTimeout(() => {
+          toast.success("Redirecting to login page...", {
+            icon: "🚀",
+          });
+        }, 1500);
+
+        setTimeout(() => {
+          router.push("/login");
+        }, 2500);
+      })
+      .catch((err) => {
+        console.error("Signup error:", err);
+      });
   };
 
   const updateFormData = (field: string, value: string) => {
