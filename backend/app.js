@@ -13,7 +13,7 @@ const app = express();
 // CORS
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000","https://proerty-mangement-zikrabyte-u8eu.vercel.app"]
     credentials: true,
   })
 );
