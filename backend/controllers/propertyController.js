@@ -4,7 +4,7 @@ const AppError = require("../utils/appError");
 exports.getAllPublicProperties = async (req, res, next) => {
   try {
     const page = req.query.page * 1 || 1;
-    const limit = req.query.limit * 1 || 6; // Default 6 properties per page
+    const limit = req.query.limit * 1 || 6;
     const skip = (page - 1) * limit;
 
     const queryObj = { ...req.query };
@@ -73,23 +73,17 @@ exports.createProperty = async (req, res, next) => {
     const { type } = req.body;
 
     if (role === "Residential Employee" && type !== "Residential") {
-      return next(
-        new AppError("You can only create Residential properties.", 403)
-      );
+      return next(new AppError("You can only create Residential properties.", 403));
     }
     if (role === "Commercial Employee" && type !== "Commercial") {
-      return next(
-        new AppError("You can only create Commercial properties.", 403)
-      );
+      return next(new AppError("You can only create Commercial properties.", 403));
     }
 
     const newProperty = await Property.create({
       ...req.body,
       createdBy: req.user.id,
     });
-    res
-      .status(201)
-      .json({ status: "success", data: { property: newProperty } });
+    res.status(201).json({ status: "success", data: { property: newProperty } });
   } catch (error) {
     next(error);
   }
@@ -97,17 +91,7 @@ exports.createProperty = async (req, res, next) => {
 
 exports.getAllProperties = async (req, res, next) => {
   try {
-    let queryObj = { ...req.query };
-    const excludedFields = ["page", "sort", "limit", "fields", "search"];
-    excludedFields.forEach((el) => delete queryObj[el]);
-
-    if (req.query.search) {
-      queryObj.$or = [
-        { title: { $regex: req.query.search, $options: "i" } },
-        { location: { $regex: req.query.search, $options: "i" } },
-      ];
-    }
-
+    let queryObj = {};
     if (req.user && req.user.role !== "Admin") {
       queryObj.createdBy = req.user.id;
     }
@@ -152,19 +136,47 @@ exports.updateProperty = async (req, res, next) => {
       req.user.role !== "Admin" &&
       property.createdBy.toString() !== req.user.id
     ) {
-      return next(
-        new AppError("You do not have permission to edit this property.", 403)
-      );
+      return next(new AppError("You do not have permission to edit this property.", 403));
     }
+
+    const updateData = { ...req.body };
+
+    // Handle Images
+    let finalImages = [];
+    if (updateData.existingImages) {
+        try {
+            finalImages = JSON.parse(updateData.existingImages);
+        } catch (e) {
+            finalImages = []; // If parsing fails, start fresh
+        }
+    }
+    
+    // `req.body.images` is added by `processPropertyPhotos` middleware for new uploads
+    if (updateData.images && Array.isArray(updateData.images)) {
+        finalImages.push(...updateData.images);
+    }
+    
+    updateData.images = finalImages;
+    delete updateData.existingImages; // Clean up temporary field
+
+    // Handle Features array (comes as a string from FormData)
+    if (updateData.features && typeof updateData.features === 'string') {
+        updateData.features = updateData.features.split(',').map(f => f.trim()).filter(Boolean);
+    } else {
+        updateData.features = [];
+    }
+    
+    // Convert numbers from string to Number type
+    if (updateData.rent) updateData.rent = Number(updateData.rent);
+    if (updateData.deposit) updateData.deposit = Number(updateData.deposit);
 
     const updatedProperty = await Property.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
-    );
-    res
-      .status(200)
-      .json({ status: "success", data: { property: updatedProperty } });
+    ).populate("createdBy", "name email image");
+
+    res.status(200).json({ status: "success", data: { property: updatedProperty } });
   } catch (error) {
     next(error);
   }
@@ -181,9 +193,7 @@ exports.deleteProperty = async (req, res, next) => {
       req.user.role !== "Admin" &&
       property.createdBy.toString() !== req.user.id
     ) {
-      return next(
-        new AppError("You do not have permission to delete this property.", 403)
-      );
+      return next(new AppError("You do not have permission to delete this property.", 403));
     }
 
     await Property.findByIdAndDelete(req.params.id);
